@@ -15,12 +15,17 @@ long seconds(){
 
 __shared__ int array[dimy][dimx];
 
+/**
+ * 按行写入，按列读取
+*/
 __global__ void copyRow(int * out){
     int val = threadIdx.y * blockDim.x + threadIdx.x;
     array[threadIdx.y][threadIdx.x] = val;
-    out[val] = array[threadIdx.y][threadIdx.x];
+    out[val] = array[threadIdx.x][threadIdx.y];
 }
-
+/**
+ * 按列写入，按行读取
+*/
 __global__ void copyCol(int * out){
     int val = threadIdx.x * blockDim.y + threadIdx.y;
     array[threadIdx.x][threadIdx.y] = val;
