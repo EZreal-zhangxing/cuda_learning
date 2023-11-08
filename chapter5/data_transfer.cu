@@ -34,7 +34,7 @@ __global__ void xor_trans_2(int * d_matrix,int * d_o_matrix,int laneMask){
 void init_matrix(int * matrix,int row,int col){
     for(int i=0;i<row;i++){
         for(int j=0;j<col;j++){
-            matrix[j + i* col] = j + i*col;
+            matrix[j + i* col] = j + i*col + 10;
         }
     }
 }
@@ -47,6 +47,12 @@ int main(int argv,char * argc[]){
     h_o_matrix = (int * )malloc(bytes);
 
     init_matrix(h_matrix,1,nums);
+
+    for(int i=0;i<DIMX;i++){
+        printf("%d ",i ^ 4);
+    }
+    
+    printf("\n");
 
     int * d_matrix,* d_o_matrix;
     cudaMalloc((void **)&d_matrix,bytes);
@@ -70,6 +76,18 @@ int main(int argv,char * argc[]){
     printf("\n");
 
     xor_trans<<<grid,block>>>(d_matrix,d_o_matrix,1);
+    cudaMemcpy(h_o_matrix,d_o_matrix,bytes,cudaMemcpyDeviceToHost);
+
+    for(int i=0;i<DIMX;i++){
+        printf("%d ",h_matrix[i]);
+    }
+    printf("\n");
+    for(int i=0;i<DIMX;i++){
+        printf("%d ",h_o_matrix[i]);
+    }
+    printf("\n");
+
+    xor_trans<<<grid,block>>>(d_matrix,d_o_matrix,2);
     cudaMemcpy(h_o_matrix,d_o_matrix,bytes,cudaMemcpyDeviceToHost);
 
     for(int i=0;i<DIMX;i++){
