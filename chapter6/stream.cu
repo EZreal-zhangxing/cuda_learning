@@ -36,36 +36,49 @@ int main(int argv, char * argc[]){
 
     cudaStream_t streams[STREAM];
 
+    cudaEvent_t start[STREAM];
+    cudaEvent_t end[STREAM];
+
     for(int i=0;i<STREAM;i++){
         cudaStreamCreate(streams+i);
+        // cudaStreamCreateWithFlags(streams+i,cudaStreamNonBlocking);
+        cudaEventCreate(start+i);
+        cudaEventCreate(end+i);
     }
 
     int per_nums = nums/STREAM;
 
     cudaMalloc((void **)&d_matrix,bytes);
-    long start = seconds();
+    long start_time = seconds();
     dim3 block(32);
     dim3 grid((per_nums + block.x - 1) / block.x);
     for(int i=0;i<STREAM;i++){
+        cudaEventRecord(start[i],streams[i]);
         cudaMemcpyAsync(d_matrix + i * per_nums,h_matrix + i * per_nums,bytes / STREAM,cudaMemcpyHostToDevice,streams[i]);
         kernal<<<grid,block,0,streams[i]>>>(d_matrix,i * per_nums);
         cudaMemcpyAsync(h_matrix + i * per_nums,d_matrix + i * per_nums,bytes / STREAM,cudaMemcpyDeviceToHost,streams[i]);
+        cudaEventRecord(end[i],streams[i]);
         // cudaStreamSynchronize(streams[i]);
     }
 
     for(int i=0;i<STREAM;i++){
         cudaStreamSynchronize(streams[i]);
     }
+    float times = 0;
+    for(int i=0;i<STREAM;i++){
+        cudaEventElapsedTime(&times,start[i],end[i]);
+        printf("stream %d elapse time :%f \n",i,times);
+    }
     // for(int x = 0;x<nums;x++){
     //     printf("%d ",h_matrix[x]);
     // }
     // printf("\n");
-    printf("using %f ms \n",(seconds() - start)/1000.0);
+    printf("using %f ms \n",(seconds() - start_time)/1000.0);
     for(int i=0;i<STREAM;i++){
         cudaStreamDestroy(streams[i]);
     }
 
-    
+    cudaDeviceReset();
     // cudaFree(d_matrix);
     // free(h_matrix);
     return 0;
