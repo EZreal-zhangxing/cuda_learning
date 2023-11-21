@@ -725,6 +725,10 @@ function<<<grid,block,byteSize>>>();
 
 共享内存等分为32个同样大小的内存模型，叫做**存储体**，这些存储体可以同时被访问，这个数量同`warpSize`,如果线程束中的每个线程访问不同的存储体，那么可以用一个内存事务完成。否则就是多个事务，这样会降低加载效率
 
+**动态共享内存只能被申明成一维数据**
+
+共享内存的定义可以在核函数内也可以在核函数外，在核函数内则作用于仅限于核函数，在核函数外则对所有核函数可见。
+
 ### 5.1.3 存储体冲突
 
 多个地址请求落在同一块内存区域时，就会发生存储体冲突。
@@ -844,6 +848,8 @@ naiveSmemCol:4   ,4
 常量内存中如果所有线程访问同一个内存元素，则是访问最优的。常量内存的访问效率同需要访问的元素个数成反比。
 
 常量内存通过 `__constant__`来标识，常量内存可以跨文件进行访问，同时只允许主机端通过`cudaMemcpyToSymbol`进行写入
+
+并且常量内存只能通过静态申请内存空间(数组形式)，无法通过动态申请，同时只能定义在全局文件，如果启用独立编译则可以跨文件可见
 
 更具常量内存的访问特性，多次访问是按照串行进行访问，因此对于系数而言是比较好的存储方式，一个线程束每次读取相同的系数值在这里能达到最优方式。
 
@@ -981,7 +987,7 @@ cuda核函数之间的调用大部分是异步的，为了缩短程序的整体�
 
 `cudaStreamCreate`用来创建一个内置对象`cudaStream_t`,这个对象将会是后续异步操作版本的额外参数
 
-注：使用异步传输数据时，必须使用固定内存(`cudaMallocHost`)或者零拷贝内存(`cudaHostAlloc`)来分配主机内存。如果不使用会导致驱动底层会从物理层面异步移动数据，会导致未定义的行为。
+$\star$ 注：**使用异步传输数据时，必须使用固定内存(`cudaMallocHost`)或者零拷贝内存(`cudaHostAlloc`)来分配主机内存。如果不使用会导致驱动底层会从物理层面异步移动数据，会导致未定义的行为。**
 
 #### 流的销毁
 
@@ -1091,7 +1097,7 @@ cuda提供了一个插入事件以及查询事件完成的功能，只有当事�
 
 `cudaEventDefault`:默认
 
-`cudaEventBlockingSync`:当调用`cudaEventSynchronize`时会阻塞调用线程,同时减少`CPU`周期的消耗
+`cudaEventBlockingSync`:避免当调用`cudaEventSynchronize`时阻塞调用线程的情况发生,同时减少`CPU`周期的消耗
 
 `cudaEventDisableTiming`:表示事件只用来同步，不需要记录时间
 
@@ -1172,7 +1178,7 @@ CAS(compare and swap) 比较并交换，该函数主要过程是，利用一个�
 
 CAS操作确保了在修改值期间，没有别的线程操作内存的数据。确保内存的数据更新能被其他线程可见以此来保证数据安全
 
-注：原子操作指令会严重影响性能
+注：原子操作指令会严重影响性能,但是会确保线程安全的操作数据
 
 ## 7.2 指令查看
 
@@ -1211,3 +1217,124 @@ cuda编译器提供了两种指令集优化的类型：
 2. `rz`:向零取整
 3. `ru`:向下取整
 4. `rd`:向上取整
+
+### 7.2.2 浮点数相关的原子操作
+
+大部分原子操作都只支持`int,unsigned int,unsigned long long int`相关类型的，对于浮点数，我们可以使用`unsigned int`作为中介进行转换，例如`__float2uint_rn`等方法
+
+# 8 CUDA库
+
+主要介绍三方库的使用，`cufft/cublas`
+
+## 8.1 cuda库的通用流程
+
+1. 创建句柄
+2. 分配数据内存，并拷贝数据
+3. 更具数据排列（列优先，行优先）配置函数库
+4. 执行函数
+5. 取回数据
+6. 释放句柄
+
+## 8.2 cuSPARSE
+[稀疏矩阵计算库](https://docs.nvidia.com/cuda/cusparse/index.html),主要用于稀疏矩阵的计算，例如稀疏矩阵与矩阵乘法/稀疏矩阵向量乘法等
+
+主要难点在于稀疏矩阵的存储格式转换，稀疏矩阵有如下几个坐标存储方式
+
+1. COO(坐标存储方式),按照数据的行列坐标以及值进行存储，组成一个列表
+2. CSR(压缩稀疏行方式),只需要知道偏移量和行的长度就能直到一行数据有哪些。这三个单独的索引数组如下：
+   1. V：按照每行非零元素压缩存储
+   2. C：列的索引
+   3. R：`R[i]` = `V，C`中第`i`行的偏移量
+3. CSC(压缩稀疏列方式)，与CSR大致相同，不过输入数据是按列存储，也是按列进行压缩。比CSR更省空间
+
+## 8.3 cuBLAS
+
+[线性代数计算库](https://docs.nvidia.com/cuda/cublas/index.html),主要用于线性代数的相关计算，例如向量点乘，矩阵向量乘法，矩阵与矩阵乘法，矩阵转置以及乘加算法等，具体参考相关API
+
+主要伪代码如下：
+```
+cublasHandle_t handle;
+cublasCreateHandle()
+/*****Data copy to Device ****/
+...
+
+/*****调用计算，注意参数设置****/
+cublas<T>gemm()
+
+/*****释放资源*****/
+cublasDestroy()
+```
+主要用到的函数有：
+
+**矩阵乘法:cublas<T>gemm**,`T in {S/s,D/d,C/c,Z/z}` 分别对应数据类型`float,double,cuFloatComplex,cuDoubleComplex`,
+
+该函数计算表达式为：$C = \alpha op(A)op(B) + \beta C$
+
+`op()`表示对矩阵的操作：不操作，转置，海森矩阵
+
+$\alpha,\beta$均为缩放系数，$\beta$为`0`时`C`表示为无效输入
+
+`leading dimension:which in the case of column-major storage is the number of rows of the allocated matrix `,主维度,按列主序存储时主维度为行数，同样按行主序存储时为列数。
+
+**矩阵求和：cublasCgeam**
+
+该函数计算表达式子：$C = \alpha op(A) + \beta op(B)$
+
+同样的该函数可以用来求矩阵的转置，相比较与`gemm`只需要两个或者一个数组参与计算
+
+**矩阵求逆：cublas<T>matinvBatched**，该方法为批量矩阵求逆，可以同时进行N个批次的矩阵求逆，但该方法仅支持`32x32`大小以下的矩阵求逆，
+
+除了利用该方法，还能使用LU分解求逆:`cublas<T>getrfBatched/cublas<T>getriBatched`.先调用cublas<T>getrfBatched 进行LU(L:下三角单位对角矩阵，U：上三角矩阵)因式分解，然后调用
+`cublas<T>getriBatched`输入LU得到的P，计算得到逆矩阵。
+
+```
+// step 1: perform in-place LU decomposition, P*A = L*U.
+//      Aarray[i] is n*n matrix A[i]
+    cublasDgetrfBatched(handle, n, Aarray, lda, PivotArray, infoArray, batchSize);
+//      check infoArray[i] to see if factorization of A[i] is successful or not.
+//      Array[i] contains LU factorization of A[i]
+
+// step 2: perform out-of-place inversion, Carray[i] = inv(A[i])
+    cublasDgetriBatched(handle, n, Aarray, lda, PivotArray, Carray, ldc, infoArray, batchSize);
+//      check infoArray[i] to see if inversion of A[i] is successful or not.
+```
+
+方法二不限矩阵大小。
+
+cublasSetVector/cublasSetMatrix，向量矩阵复制函数，将主机的数据拷贝到设备上
+
+## 8.4 cuFFT
+
+[傅里叶变换库](https://docs.nvidia.com/cuda/cufft/index.html)
+
+主要计算流程：
+```
+createHandle
+cufftPlanMany()//设置计算计划
+cufftExecC2C() // 执行
+DestroyHandle
+```
+傅里叶变换主要在于`PlanMany`的设置用于设置多个fft变换
+cufftPlanMany参数说明：
+1. `plan`:cufftHandle指针
+2. `int rank`:几维傅里叶变换
+3. `int * n`:与`rank`值同维度的数组，用于描述每个`fft`变换有多少个元素，`n[0]`最外面的维度，`n[rank-1]`最里面的维度
+4. `int * inembed`:输入数据的内存排布/存储维度，按行优先存储则`inembed[0]=col，inembed[1]=row`，按列优先存储则`inembed[0]=row,inembed[1]=col`
+5. `int istride`:同一个`fft`变换中元素的距离
+6. `int idist`:相邻两个`fft`变换中元素的距离
+7. `int * onembed`:输出数据的内存排列
+8. `int ostride`:同一个`fft`变换中元素的距离
+9. `int odist`:相邻两个`fft`变换中元素的距离
+10. `cufftType type`:`fft`变换类型`C2C,C2R,R2C,R2R`：`复数到复数，复数到实数，实数到复数，实数到实数`
+
+更具`type`分别调用对应的执行函数
+
+同样cufft支持多流的处理，利用`cufftSetStream`设置`handle`是处于哪个流
+
+## 8.5 cuRAND
+
+[随机数生成库](https://docs.nvidia.com/cuda/curand/index.html)
+
+# 9 多GPU
+
+多GPU主要包含任务分配以及多GPU之间的数据传输，为了避免使用主机内存中转，cuda提供了一套点对点传输的API，用于在多GPU之间直接通过`PCIe`进行数据传输。
