@@ -5,6 +5,15 @@
 #include<sys/time.h>
 #include<cufft.h>
 #include<unistd.h>
+
+
+#define CHECK_FFT_STATUS(call){                                                                     \
+    if(call != CUFFT_SUCCESS){                                                                      \
+        printf("Line [%d],cudaError code [%d]\n",__LINE__,call);                                    \
+    }                                                                                               \
+}                                                                                                   \
+
+
 void random_init(cuComplex * matrix ,int size){
     time_t t;
     srand((unsigned int)time(&t));
@@ -42,7 +51,7 @@ int main(int argc,char * argv[]){
     cudaEventCreate(&start);
     cudaEventCreate(&end);
     for(int i=0;i<nstream;i++){
-        cufftCreate(&handle[i]);
+        CHECK_FFT_STATUS(cufftCreate(&handle[i]));
         cudaStreamCreate(&streams[i]);
     }
 
@@ -50,13 +59,13 @@ int main(int argc,char * argv[]){
     int inembed[2] = {nums,batch/nstream};
     int onembed[2] = {nums,batch/nstream};
     for(int i=0;i<nstream;i++){
-        cufftPlanMany(&handle[i],1,n,inembed,1,nums,onembed,1,nums,CUFFT_C2C,batch/nstream);
-        cufftSetStream(handle[i],streams[i]);
+        CHECK_FFT_STATUS(cufftPlanMany(&handle[i],1,n,inembed,1,nums,onembed,1,nums,CUFFT_C2C,batch/nstream));
+        CHECK_FFT_STATUS(cufftSetStream(handle[i],streams[i]));
     }
     cudaEventRecord(start);
     for(int i=0;i<nstream;i++){
         cudaMemcpyAsync(d_data + i * (batch/nstream) * nums,h_data[i],(batch/nstream) * nums * sizeof(cuComplex),cudaMemcpyHostToDevice,streams[i]);
-        cufftExecC2C(handle[i],d_data + i * (batch/nstream) * nums,d_output + i * (batch/nstream) * nums,CUFFT_FORWARD);
+        CHECK_FFT_STATUS(cufftExecC2C(handle[i],d_data + i * (batch/nstream) * nums,d_output + i * (batch/nstream) * nums,CUFFT_FORWARD));
         // cufftExecC2C(handle[i],h_data + i * (batch/nstream) * nums,d_output + i * (batch/nstream) * nums,CUFFT_INVERSE);
         // usleep(2000);
     }
@@ -73,7 +82,10 @@ int main(int argc,char * argv[]){
     //     }  
     //     printf("\n");
     // }
-    cudaFreeHost(h_data);
+    cudaFreeHost(h_data[0]);
+    cudaFreeHost(h_data[1]);
+    cudaFreeHost(h_data[2]);
+    cudaFreeHost(h_data[3]);
     cudaFree(d_output);
     free(h_output);
     cudaEventDestroy(start);
