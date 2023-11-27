@@ -1347,3 +1347,18 @@ cufftPlanMany参数说明：
 # 9 多GPU
 
 多GPU主要包含任务分配以及多GPU之间的数据传输，为了避免使用主机内存中转，cuda提供了一套点对点传输的API，用于在多GPU之间直接通过`PCIe`进行数据传输。
+
+## GPU切换
+在显示调用GPU操作前，调用`cudaSetDevice`可以指定设备，一旦选定设备，接下来的操作都会在这个设备上。并且，该函数并不会导致主机同步。可以很快的将控制权返回给主机。
+
+获取设备信息：可以通过`cudaGetDeviceCount`来获取可用GPU的数量，同时更具`cudaGetDeviceProperties`来获取设备信息
+
+## 点对点通讯
+
+首先对于任意设备都需要开启点对点的功能，因为不是所有设备都支持这个功能，还要显示的查询设备是否支持这个功能，利用`cudaDeviceCanAccessPeer`函数来查询设备支不支持点对点传输，
+然后通过`cudaDeviceEnablePeerAccess(int peerDevice)`来设定当前设备对`peerDevice`设备可进行传输。
+
+这个功能会显示开启直到显示禁用`cudaDeviceDisablePeerAccess`
+
+数据复制函数则是 `cudaMemcpyPeerAsync`用来将数据复制到另一个设备上
+
