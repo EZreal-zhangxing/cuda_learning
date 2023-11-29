@@ -1273,7 +1273,7 @@ cublasDestroy()
 ```
 主要用到的函数有：
 
-**矩阵乘法:cublas<T>gemm**,`T in {S/s,D/d,C/c,Z/z}` 分别对应数据类型`float,double,cuFloatComplex,cuDoubleComplex`,
+**矩阵乘法:cublas\<T\>gemm**,`T in {S/s,D/d,C/c,Z/z}` 分别对应数据类型`float,double,cuFloatComplex,cuDoubleComplex`,
 
 该函数计算表达式为：$C = \alpha op(A)op(B) + \beta C$
 
@@ -1289,7 +1289,7 @@ $\alpha,\beta$均为缩放系数，$\beta$为`0`时`C`表示为无效输入
 
 同样的该函数可以用来求矩阵的转置，相比较与`gemm`只需要两个或者一个数组参与计算
 
-**矩阵求逆：cublas<T>matinvBatched**，该方法为批量矩阵求逆，可以同时进行N个批次的矩阵求逆，但该方法仅支持`32x32`大小以下的矩阵求逆，
+**矩阵求逆：cublas\<T\>matinvBatched**，该方法为批量矩阵求逆，可以同时进行N个批次的矩阵求逆，但该方法仅支持`32x32`大小以下的矩阵求逆，
 
 除了利用该方法，还能使用LU分解求逆:`cublas<T>getrfBatched/cublas<T>getriBatched`.先调用cublas<T>getrfBatched 进行LU(L:下三角单位对角矩阵，U：上三角矩阵)因式分解，然后调用
 `cublas<T>getriBatched`输入LU得到的P，计算得到逆矩阵。
@@ -1308,7 +1308,7 @@ $\alpha,\beta$均为缩放系数，$\beta$为`0`时`C`表示为无效输入
 
 方法二不限矩阵大小。
 
-cublasSetVector/cublasSetMatrix，向量矩阵复制函数，将主机的数据拷贝到设备上
+cublasSetVector/cublasSetMatrix，向量,矩阵复制函数，将主机的数据拷贝到设备上
 
 ## 8.4 cuFFT
 
