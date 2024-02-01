@@ -1,11 +1,13 @@
 # cuda_learning 入门
 记录学习Cuda编程的项目
 
-## One Day:
+## 入门篇：Hello World:
 
 任务清单：配置GPU环境以及创建GPU版的Hello world!
 
 ### 一、配置GPU编程环境
+
+#### Windows环境搭建
 
 主要参考[这篇文章](https://blog.csdn.net/chen565884393/article/details/127905428)
 
@@ -17,6 +19,10 @@
 
 我最开始下载的是VS 2022 community 的版本，即使在里面选择安装2019,2017的编译器仍然会报错误，提示头文件找不到，或者版本的问题，改回2019版本的就没问题了。
 
+#### Linux环境搭建
+
+Linux环境只需要按照官方手册依次安装适合你GPU型号的驱动和CUDA即可，这里不做过多的赘述。
+
 ### 二、Hello world
 
 对于GPU编程主要分为两部分，一部分是主机(host)，另一部分则是设备(Device)
@@ -25,11 +31,14 @@
 
 我们可以在CPU上运行逻辑分支，然后调用GPU进行计算，但这里GPU的计算与主机是异步的。
 
-调用GPU的函数之后，CPU的控制权依然会往下运行，如果CPU后面的代码可以主动调用同步操作`cudaDeviceSynchronize`函数来同步，这里CPU会阻塞等待GPU完成计算。
+调用GPU的函数之后，控制权会返回给CPU，主机代码依然会往下运行，同时CPU后面的代码可以主动调用同步操作`cudaDeviceSynchronize`函数来同步等待GPU完成计算返回结果。
 
-同时也可以调用`cudaMemcpy`在主机和设备间拷贝数据时，这里CPU也会阻塞来隐式同步数据。
+当然也不是每次调用GPU进行计算之后都需要调用同步操作。GPU和CPU之间的同步分为显式同步和隐式同步两种。
+这里调用`cudaDeviceSynchronize`被称为显式同步。隐式同步则是在函数调用之后会自动等待GPU完成操作。
 
-## Two Day:
+例如:`cudaMemcpy`在主机和设备间拷贝数据时，这里CPU也会阻塞来隐式同步数据。
+
+## 语法规则
 
 GPU编程主要语法与C语言类似，主要是多了一些特殊标识符
 
